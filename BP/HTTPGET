@@ -1,0 +1,12 @@
+FUNCTION HTTPGET(URL)
+* mvx-lang/curl-cmd — HTTP GET returning the response body, via the OS `curl`
+* command (the "command" HTTP transport; the libcurl in-process version lives in
+* mvx-lang/curl).  curl-cmd provides the virtual name "curl", so it satisfies a
+* dependency on "curl" with no compiler or libcurl needed — only the curl
+* binary, which mvpkg already requires.  GPL-2.0-only.
+   TMP = "/tmp/curlcmd_get_" : @USERNO
+   EXECUTE '!curl -sL "' : URL : '" > ' : TMP
+   BODY = ""
+   OSREAD BODY FROM TMP ELSE BODY = ""
+   EXECUTE '!rm -f "' : TMP : '"'
+   RETURN BODY

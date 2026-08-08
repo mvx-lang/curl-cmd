@@ -1,0 +1,21 @@
+# Release curl-cmd on a version tag: publish the source package as a GitHub
+# release asset.  curl-cmd is pure BASIC (no native build) — it installs by
+# cataloging BP/HTTPGET + BP/HTTPGETFILE — so a single portable source artifact
+# is all it ships.  Copyright (C) 2026 Gordon Heydon.  GPL-2.0-only.
+name: release
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+*"
+permissions:
+  contents: write
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: mvx-lang/mvx/.github/actions/publish-source@main
+        with:
+          package: mvx-lang/curl-cmd
+          title: curl-cmd
+          body: "curl-cmd — the OS-curl HTTP transport for UniData (HTTPGET/HTTPGETFILE); provides the virtual 'curl'. Pure BASIC; indexed by the package registry."

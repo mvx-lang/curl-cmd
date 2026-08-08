@@ -1,0 +1,11 @@
+FUNCTION HTTPGETFILE(URL, PATH)
+* mvx-lang/curl-cmd — download URL to PATH via the OS `curl` command, returning
+* the HTTP status.  -L follows redirects: a GitHub release-asset URL 302s to the
+* CDN, and the registry indexes exactly those external asset URLs, so
+* %{http_code} then reports the final status (200), not the 302.  GPL-2.0-only.
+   CF = "/tmp/curlcmd_code_" : @USERNO
+   EXECUTE '!curl -sL -o "' : PATH : '" -w "%{http_code}" "' : URL : '" > ' : CF
+   CODE = ""
+   OSREAD CODE FROM CF ELSE CODE = "0"
+   EXECUTE '!rm -f "' : CF : '"'
+   RETURN CODE + 0

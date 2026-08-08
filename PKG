@@ -1,0 +1,4 @@
+curl-cmd
+1.0.0
+HTTP client for UniData via the OS curl command (HTTPGET, HTTPGETFILE)
+udt

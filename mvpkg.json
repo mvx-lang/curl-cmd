@@ -1,0 +1,9 @@
+{
+  "name": "mvx-lang/curl-cmd",
+  "version": "1.0.0",
+  "description": "HTTP client for UniData via the OS curl command (HTTPGET, HTTPGETFILE) — provides the virtual 'curl' transport, no compiler or libcurl needed",
+  "license": "GPL-2.0-only",
+  "systems": ["udt"],
+  "provides": ["curl"],
+  "dependencies": []
+}
