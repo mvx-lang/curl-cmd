@@ -4,9 +4,35 @@ FUNCTION HTTPGET(URL)
 * mvx-lang/curl).  curl-cmd provides the virtual name "curl", so it satisfies a
 * dependency on "curl" with no compiler or libcurl needed — only the curl
 * binary, which mvpkg already requires.  GPL-2.0-only.
+$INCLUDE MVPKG.INC PLATFORM.H
+*
+* -o RATHER THAN `>`.  Redirection is a SHELL feature, and jBASE's EXECUTE runs
+* an OS command directly with no shell to interpret it -- `> file` would arrive
+* as two more arguments to curl.  curl writes the file itself with -o, which
+* needs no shell anywhere and is one less thing to quote.
    TMP = "/tmp/curlcmd_get_" : @USERNO
-   EXECUTE '!curl -sL "' : URL : '" > ' : TMP
+$IFDEF JBASE
+* NO SHELL MEANS NO QUOTING.  jBASE splits the command itself and passes the
+* pieces through, quotes included -- so a quoted URL reaches curl WITH its
+* quotes and fails.  Unquoted is correct here for the same reason it would be
+* wrong anywhere else.
+   EXECUTE 'curl -sL -o ' : TMP : ' ' : URL CAPTURING COUT
+$ENDIF
+$IFDEF UDT
+   EXECUTE '!curl -sL -o "' : TMP : '" "' : URL : '"' CAPTURING COUT
+$ENDIF
+$IFDEF UV
+   EXECUTE "SH -c 'curl -sL -o " : TMP : ' "' : URL : "'" CAPTURING COUT
+$ENDIF
    BODY = ""
    OSREAD BODY FROM TMP ELSE BODY = ""
-   EXECUTE '!rm -f "' : TMP : '"'
+$IFDEF JBASE
+   EXECUTE 'rm -f ' : TMP CAPTURING COUT
+$ENDIF
+$IFDEF UDT
+   EXECUTE '!rm -f "' : TMP : '"' CAPTURING COUT
+$ENDIF
+$IFDEF UV
+   EXECUTE "SH -c 'rm -f " : TMP : "'" CAPTURING COUT
+$ENDIF
    RETURN BODY

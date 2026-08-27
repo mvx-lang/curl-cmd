@@ -4,7 +4,9 @@
   "description": "HTTP client for UniData via the OS curl command (HTTPGET, HTTPGETFILE) \u2014 provides the virtual 'curl' transport, no compiler or libcurl needed",
   "license": "GPL-2.0-only",
   "systems": [
-    "udt"
+    "udt",
+    "uv",
+    "jbase"
   ],
   "provides": [
     "curl"
