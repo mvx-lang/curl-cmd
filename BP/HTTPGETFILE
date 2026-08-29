@@ -16,11 +16,19 @@ $IFDEF UDT
    EXECUTE '!curl -sL -o "' : PATH : '" -w "%{http_code}" "' : URL : '"' CAPTURING COUT
 $ENDIF
 $IFDEF UV
-   EXECUTE "SH -c 'curl -sL -o " : PATH : ' -w "%{http_code}" "' : URL : "'" CAPTURING COUT
+* THE QUOTES ARE BUILT, NOT WRITTEN.  UniVerse needs SH -c, so the whole curl
+* command is one argument to sh and has to survive TWO parsers.  Spelling that
+* inline mixes ' and " until neither balances -- the previous version emitted
+*     SH -c 'curl -sL -o /tmp/f "https://...'
+* with the double quote never closed, so curl saw no URL, wrote nothing, and
+* HTTPGET returned "" with no error anywhere.  CHAR(34)/CHAR(39) make the
+* nesting explicit: double quotes around the sh command, single around the URL.
+   UDQ = CHAR(34) ; USQ = CHAR(39)
+   EXECUTE "SH -c " : UDQ : "curl -sL -o " : PATH : " -w " : USQ : "%{http_code}" : USQ : " " : USQ : URL : USQ : UDQ CAPTURING COUT
 $ENDIF
 * CAPTURING hands back one attribute per line; the code is the whole of what -w
 * wrote, but a transport error can leave the capture empty and TRIM of nothing
 * is nothing, which is 0 rather than a wrong status.
    CODE = TRIM(COUT<1>)
    IF CODE = "" THEN CODE = "0"
-   RETURN CODE + 0
+   RETURN(CODE + 0)
