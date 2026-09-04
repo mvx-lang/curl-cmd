@@ -28,6 +28,7 @@ jobs:
       - uses: mvx-lang/mvx/.github/actions/publish-source@main
         with:
           package: mvx-lang/curl-cmd
+          artifact: curl-cmd
           title: curl-cmd
           body: "curl-cmd — the OS-curl HTTP transport for UniData (HTTPGET/HTTPGETFILE); provides the virtual 'curl'. Pure BASIC; indexed by the package registry."
 
@@ -54,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           VER="${GITHUB_REF_NAME}"
-          BASE="mvx-lang_curl-cmd-$VER-${{ matrix.system }}-any-any-le"
+          BASE="curl-cmd-$VER-${{ matrix.system }}-any-any-le"
           rm -rf dist && mkdir -p dist
           sh build-pkg.sh dist
           tar czf "$BASE.tar.gz" -C dist curl-cmd
