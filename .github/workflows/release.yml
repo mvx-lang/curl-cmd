@@ -42,7 +42,15 @@ jobs:
   # Without these the registry serves this package as `source` on every system,
   # which is what it did for all four ports until now.
   account:
+    # AFTER source, and ONE AT A TIME.  Each upload creates the release if it is
+    # not there yet, so three of them starting together raced and two lost:
+    #   Validation Failed: {"resource":"Release","code":"already_exists",...}
+    # `needs: source` means the release already exists when these run, and
+    # max-parallel 1 stops them racing each other for the same finalize.  Three
+    # jobs that copy six files each cost nothing serialised.
+    needs: [source]
     strategy:
+      max-parallel: 1
       matrix:
         system: [udt, uv, jbase]
     runs-on: ubuntu-latest
