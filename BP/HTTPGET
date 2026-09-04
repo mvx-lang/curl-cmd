@@ -4,9 +4,67 @@ FUNCTION HTTPGET(URL)
 * mvx-lang/curl).  curl-cmd provides the virtual name "curl", so it satisfies a
 * dependency on "curl" with no compiler or libcurl needed — only the curl
 * binary, which mvpkg already requires.  GPL-2.0-only.
+$INCLUDE MVPKG.INC PLATFORM.H
+*
+* -o RATHER THAN `>`.  Redirection is a SHELL feature, and jBASE's EXECUTE runs
+* an OS command directly with no shell to interpret it -- `> file` would arrive
+* as two more arguments to curl.  curl writes the file itself with -o, which
+* needs no shell anywhere and is one less thing to quote.
    TMP = "/tmp/curlcmd_get_" : @USERNO
-   EXECUTE '!curl -sL "' : URL : '" > ' : TMP
+$IFDEF JBASE
+* NO SHELL MEANS NO QUOTING.  jBASE splits the command itself and passes the
+* pieces through, quotes included -- so a quoted URL reaches curl WITH its
+* quotes and fails.  Unquoted is correct here for the same reason it would be
+* wrong anywhere else.
+   EXECUTE 'curl -sL -o ' : TMP : ' ' : URL CAPTURING COUT
+$ENDIF
+$IFDEF UDT
+   EXECUTE '!curl -sL -o "' : TMP : '" "' : URL : '"' CAPTURING COUT
+$ENDIF
+$IFDEF UV
+* THE QUOTES ARE BUILT, NOT WRITTEN.  UniVerse needs SH -c, so the whole curl
+* command is one argument to sh and has to survive TWO parsers.  Spelling that
+* inline mixes ' and " until neither balances -- the previous version emitted
+*     SH -c 'curl -sL -o /tmp/f "https://...'
+* with the double quote never closed, so curl saw no URL, wrote nothing, and
+* HTTPGET returned "" with no error anywhere.  CHAR(34)/CHAR(39) make the
+* nesting explicit: double quotes around the sh command, single around the URL.
+   UDQ = CHAR(34) ; USQ = CHAR(39)
+   EXECUTE "SH -c " : UDQ : "curl -sL -o " : TMP : " " : USQ : URL : USQ : UDQ CAPTURING COUT
+$ENDIF
    BODY = ""
+* UniVerse has no OSREAD -- it parses `OSREAD X FROM p` as a variable being
+* assigned, and says so as "Variable Name (UNDEFINED) unexpected".  OPENSEQ /
+* READSEQ is the equivalent there.  Flat guards, because an $IFDEF nested in an
+* $ELSE compiles on UniData and fails on UniVerse.
+$IFDEF UV
+   OPENSEQ TMP TO CFV THEN
+      CDONE = 0
+      LOOP UNTIL CDONE DO
+         READSEQ CLINE FROM CFV THEN
+            IF BODY = "" THEN BODY = CLINE ELSE BODY := CHAR(10) : CLINE
+         END ELSE CDONE = 1
+      REPEAT
+      CLOSESEQ CFV
+   END
+$ENDIF
+$IFDEF JBASE
    OSREAD BODY FROM TMP ELSE BODY = ""
-   EXECUTE '!rm -f "' : TMP : '"'
-   RETURN BODY
+$ENDIF
+$IFDEF UDT
+   OSREAD BODY FROM TMP ELSE BODY = ""
+$ENDIF
+$IFDEF MVX
+   BODY = OSREAD(TMP)
+   IF STATUS() # 0 THEN BODY = ""
+$ENDIF
+$IFDEF JBASE
+   EXECUTE 'rm -f ' : TMP CAPTURING COUT
+$ENDIF
+$IFDEF UDT
+   EXECUTE '!rm -f "' : TMP : '"' CAPTURING COUT
+$ENDIF
+$IFDEF UV
+   EXECUTE "SH -c " : CHAR(34) : "rm -f " : TMP : CHAR(34) CAPTURING COUT
+$ENDIF
+   RETURN(BODY)
