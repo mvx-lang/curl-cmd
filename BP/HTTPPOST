@@ -1,0 +1,103 @@
+      FUNCTION HTTPPOST(URL, CTYPE, BODY, RESPFILE)
+* mvx-lang/curl-cmd — POST a body to URL via the OS `curl` command, returning
+* the HTTP status and writing the response to RESPFILE.  GPL-2.0-only.
+*
+* Part of the "curl" transport surface, alongside HTTPGET and HTTPGETFILE.  The
+* http API (mvx-lang/http-curl) is built on these; nothing above this line does
+* its own shelling out.
+*
+* THE BODY GOES IN A FILE, NEVER ON THE COMMAND LINE.  Three reasons, and any
+* one of them is enough:
+*   - a command line has a length limit and a request body does not;
+*   - the body would have to survive the shell's quoting on UniVerse and no
+*     quoting at all on jBASE, which is exactly the trap HTTPGET documents;
+*   - argv IS PUBLIC.  Anything on it is visible to `ps` for every user on the
+*     box, and a POST body is the one part of a request most likely to carry
+*     something that should not be.
+* So the caller hands a string, this writes it to a file only it can name, and
+* the command line carries paths and a content type -- no caller data at all.
+$INCLUDE MVPKG.INC PLATFORM.H
+      BTMP = "/tmp/curlcmd_post_" : @USERNO
+      GOSUB PWRITE
+      IF PWOK = 0 THEN RETURN(0)
+      CT = TRIM(CTYPE)
+      IF CT = "" THEN CT = "application/json"
+$IFDEF JBASE
+* NO SHELL MEANS NO QUOTING.  jBASE splits the command itself and passes the
+* pieces through, quotes included -- so a quoted argument reaches curl WITH its
+* quotes.  Unquoted is correct here for the same reason it would be wrong
+* anywhere else.  A content type has no spaces, so it needs none.
+      EXECUTE 'curl -sL -X POST -H Content-Type:' : CT : ' --data-binary @' : BTMP : ' -o ' : RESPFILE : ' -w %{http_code} ' : URL CAPTURING COUT
+$ENDIF
+$IFDEF UDT
+      EXECUTE '!curl -sL -X POST -H "Content-Type: ' : CT : '" --data-binary "@' : BTMP : '" -o "' : RESPFILE : '" -w "%{http_code}" "' : URL : '"' CAPTURING COUT
+$ENDIF
+$IFDEF UV
+* THE QUOTES ARE BUILT, NOT WRITTEN.  UniVerse needs SH -c, so the whole curl
+* command is one argument to sh and has to survive TWO parsers; spelling that
+* inline mixes ' and " until neither balances.  CHAR(34)/CHAR(39) make the
+* nesting explicit: double quotes around the sh command, single around the
+* values that contain spaces or punctuation.
+      UDQ = CHAR(34) ; USQ = CHAR(39)
+      CMD = "curl -sL -X POST -H " : USQ : "Content-Type: " : CT : USQ
+      CMD := " --data-binary @" : BTMP : " -o " : RESPFILE
+      CMD := " -w " : USQ : "%{http_code}" : USQ : " " : USQ : URL : USQ
+      EXECUTE "SH -c " : UDQ : CMD : UDQ CAPTURING COUT
+$ENDIF
+$IFDEF MVX
+      COUT = OSEXEC("curl -sL -X POST -H 'Content-Type: " : CT : "' --data-binary @" : BTMP : " -o " : RESPFILE : " -w '%{http_code}' '" : URL : "'")
+$ENDIF
+* CAPTURING hands back one attribute per line; the code is the whole of what -w
+* wrote, and a transport error leaves the capture empty -- TRIM of nothing is
+* nothing, which is 0 rather than a wrong status.
+      CODE = TRIM(COUT<1>)
+      IF CODE = "" THEN CODE = "0"
+      GOSUB PRM
+      RETURN(CODE + 0)
+
+* PWRITE — BODY to BTMP.  PWOK = 1 when it is there to be posted; a body that
+* could not be written must not become an empty POST that looks like it worked.
+PWRITE:
+      PWOK = 0
+$IFDEF UV
+* THE STALE FILE GOES FIRST, so there is no tail to truncate and no WEOF.
+* `WEOF F` does not compile here -- UniVerse wants ON after it and says
+* "Variable Name (LOCAL) unexpected, Was expecting: ELSE, ON, THEN" -- and
+* removing the file is simpler than getting that right for one temp file we
+* own outright.
+      GOSUB PRM
+      OPENSEQ BTMP TO PWF ELSE
+         CREATE PWF ELSE
+            RETURN
+         END
+      END
+      WRITESEQ BODY ON PWF ELSE PWOK = 0
+      CLOSESEQ PWF
+      PWOK = 1
+$ENDIF
+$IFDEF JBASE
+      OSWRITE BODY ON BTMP ; PWOK = 1
+$ENDIF
+$IFDEF UDT
+      OSWRITE BODY ON BTMP ; PWOK = 1
+$ENDIF
+$IFDEF MVX
+      OSWRITE(BTMP, BODY)
+      IF STATUS() = 0 THEN PWOK = 1
+$ENDIF
+      RETURN
+
+PRM:
+$IFDEF JBASE
+      EXECUTE 'rm -f ' : BTMP CAPTURING RMOUT
+$ENDIF
+$IFDEF UDT
+      EXECUTE '!rm -f "' : BTMP : '"' CAPTURING RMOUT
+$ENDIF
+$IFDEF UV
+      EXECUTE "SH -c " : CHAR(34) : "rm -f " : BTMP : CHAR(34) CAPTURING RMOUT
+$ENDIF
+$IFDEF MVX
+      PGONE = OSDELETE(BTMP)
+$ENDIF
+      RETURN
