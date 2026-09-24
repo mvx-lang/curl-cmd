@@ -6,6 +6,18 @@ FUNCTION HTTPGET(URL)
 * binary, which mvpkg already requires.  GPL-2.0-only.
 $INCLUDE MVPKG.INC PLATFORM.H
 *
+* NO MVX ARM, DELIBERATELY (#20).  mvpkg.json declares udt, uv and jbase, and
+* mvx is served by the runtime's own http extension (HTTPGET / HTTPGETFILE /
+* HTTPPOST, built in since mvx#286) with mvx-lang/curl for TLS.  There used to
+* be $IFDEF MVX arms here; nothing ever compiled them, and every one had rotted:
+* they called OSEXEC with a shell command line where mvx takes an FM-delimited
+* argv and runs no shell, read the captured output from the RETURN value where
+* mvx returns the exit status and captures into a second argument, and wrote
+* OSWRITE(path, content) where mvx takes (content, path) and answers in its
+* return rather than STATUS().  HTTPGET's arm read a temp file no MVX branch
+* ever wrote.  A port that is never compiled is not support; it is debris that
+* reads like support.
+*
 * -o RATHER THAN `>`.  Redirection is a SHELL feature, and jBASE's EXECUTE runs
 * an OS command directly with no shell to interpret it -- `> file` would arrive
 * as two more arguments to curl.  curl writes the file itself with -o, which
@@ -53,10 +65,6 @@ $IFDEF JBASE
 $ENDIF
 $IFDEF UDT
    OSREAD BODY FROM TMP ELSE BODY = ""
-$ENDIF
-$IFDEF MVX
-   BODY = OSREAD(TMP)
-   IF STATUS() # 0 THEN BODY = ""
 $ENDIF
 $IFDEF JBASE
    EXECUTE 'rm -f ' : TMP CAPTURING COUT
