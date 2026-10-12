@@ -1,0 +1,57 @@
+# curl-cmd — what can be checked without an MV system, on every push and PR.
+# Copyright (C) 2026 Gordon Heydon.  GPL-2.0-only (see LICENSE).
+#
+# WHY THIS EXISTS.  There was no ci.yml at all: release.yml triggers on a tag
+# and nightly.yml on a schedule, so a pull request here was checked by nothing
+# and nothing told you the manifests were wrong until someone looked at a
+# published artifact.  TWO releases shipped that way -- 1.1.0 and 1.2.0 both
+# declare themselves 1.0.0 (#22).
+#
+# THE REAL TEST IS NOT HERE.  BP/ is BASIC targeting udt, uv and jbase, and
+# nothing exercises it.  That needs an account on each, which
+# mv-package-registry's mv-package-test action now provides, and it is the
+# larger gap (#23).
+name: ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # THE MANIFESTS MUST AGREE WITH EACH OTHER, which is checkable without a
+      # tag.  manifest-version.sh compares both files against the version it is
+      # given and compares their systems lists to each other, so handing it the
+      # version out of mvpkg.json asserts agreement without needing a tag.  The
+      # release checks both against the tag, which is the part only a tag can
+      # answer -- and is what would have caught #22.
+      - name: The manifests agree with each other
+        run: |
+          set -eu
+          want=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                   mvpkg.json | head -1)
+          if [ -z "$want" ]; then
+            echo "::error::mvpkg.json has no version to check against"
+            exit 1
+          fi
+          echo "mvpkg.json declares $want -- checking PKG against it"
+          sh tests/manifest-version.sh "$want"
+
+      # build-pkg.sh is the only executable code here that is not BASIC, and it
+      # stages every published artifact.  It is clean today, so this holds that
+      # rather than discovering it during a release.
+      - name: The shell scripts lint
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends shellcheck
+          shellcheck -S warning build-pkg.sh tests/manifest-version.sh

@@ -17,6 +17,18 @@
 * So the caller hands a string, this writes it to a file only it can name, and
 * the command line carries paths and a content type -- no caller data at all.
 $INCLUDE MVPKG.INC PLATFORM.H
+*
+* NO MVX ARM, DELIBERATELY (#20).  mvpkg.json declares udt, uv and jbase, and
+* mvx is served by the runtime's own http extension (HTTPGET / HTTPGETFILE /
+* HTTPPOST, built in since mvx#286) with mvx-lang/curl for TLS.  There used to
+* be $IFDEF MVX arms here; nothing ever compiled them, and every one had rotted:
+* they called OSEXEC with a shell command line where mvx takes an FM-delimited
+* argv and runs no shell, read the captured output from the RETURN value where
+* mvx returns the exit status and captures into a second argument, and wrote
+* OSWRITE(path, content) where mvx takes (content, path) and answers in its
+* return rather than STATUS().  HTTPGET's arm read a temp file no MVX branch
+* ever wrote.  A port that is never compiled is not support; it is debris that
+* reads like support.
       BTMP = "/tmp/curlcmd_post_" : @USERNO
       GOSUB PWRITE
       IF PWOK = 0 THEN RETURN(0)
@@ -43,9 +55,6 @@ $IFDEF UV
       CMD := " --data-binary @" : BTMP : " -o " : RESPFILE
       CMD := " -w " : USQ : "%{http_code}" : USQ : " " : USQ : URL : USQ
       EXECUTE "SH -c " : UDQ : CMD : UDQ CAPTURING COUT
-$ENDIF
-$IFDEF MVX
-      COUT = OSEXEC("curl -sL -X POST -H 'Content-Type: " : CT : "' --data-binary @" : BTMP : " -o " : RESPFILE : " -w '%{http_code}' '" : URL : "'")
 $ENDIF
 * CAPTURING hands back one attribute per line; the code is the whole of what -w
 * wrote, and a transport error leaves the capture empty -- TRIM of nothing is
@@ -81,10 +90,6 @@ $ENDIF
 $IFDEF UDT
       OSWRITE BODY ON BTMP ; PWOK = 1
 $ENDIF
-$IFDEF MVX
-      OSWRITE(BTMP, BODY)
-      IF STATUS() = 0 THEN PWOK = 1
-$ENDIF
       RETURN
 
 PRM:
@@ -96,8 +101,5 @@ $IFDEF UDT
 $ENDIF
 $IFDEF UV
       EXECUTE "SH -c " : CHAR(34) : "rm -f " : BTMP : CHAR(34) CAPTURING RMOUT
-$ENDIF
-$IFDEF MVX
-      PGONE = OSDELETE(BTMP)
 $ENDIF
       RETURN
