@@ -1,5 +1,5 @@
 curl-cmd
-1.0.0
+1.2.0
 HTTP client for UniData via the OS curl command (HTTPGET, HTTPGETFILE)
 udt uv jbase
 +mvpkg
