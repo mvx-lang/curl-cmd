@@ -34,8 +34,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: The manifests declare the tag
-        run: sh tests/manifest-version.sh "${GITHUB_REF_NAME}"
+      - name: The manifests agree with each other
+        run: |
+          set -eu
+          want=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                   mvpkg.json | head -1)
+          [ -n "$want" ] || { echo "::error::mvpkg.json has no version"; exit 1; }
+          sh tests/manifest-version.sh "$want"
 
   source:
     needs: [manifests]
@@ -74,6 +79,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # JUST THE STAMPER.  This job compiles nothing, so it needs no toolchain
+      # -- stamp-manifests.py is standalone Python.  Taken from mvx's `main`,
+      # its RELEASED line, which moves when a release merges and not before:
+      # the right coupling for a script with no compiler dependency, and the
+      # opposite of the default branch.
+      - name: Check out the manifest stamper
+        uses: actions/checkout@v5
+        with:
+          repository: mvx-lang/mvx
+          ref: main
+          path: .mvx-src
+          sparse-checkout: .github/actions/publish-source
+          sparse-checkout-cone-mode: false
+
       - name: Stage the ${{ matrix.system }} account
         id: pkg
         shell: bash
@@ -83,6 +103,25 @@ jobs:
           BASE="curl-cmd-$VER-${{ matrix.system }}-any-any-le"
           rm -rf dist && mkdir -p dist
           sh build-pkg.sh dist
+          # THE TAG IS THE SOURCE OF TRUTH (mvx#363).  TWO releases shipped
+          # declaring 1.0.0 -- 1.1.0 and 1.2.0, in every asset -- because
+          # build-pkg.sh copies PKG and mvpkg.json verbatim (line 25) and
+          # nothing wrote the tag into them (#22).  Those two artifacts are
+          # still wrong and nothing reaches back; this stops the next one.
+          #
+          # STAMPED AFTER STAGING, on the staged copy rather than the tree: the
+          # artifact is what has to be honest, and leaving the checkout alone
+          # keeps this job independent of the order the matrix runs in.
+          #
+          # And ASSERTED, because a stamper that silently did nothing would
+          # leave exactly the bug it is here to prevent.
+          if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
+            python3 .mvx-src/.github/actions/publish-source/stamp-manifests.py \
+              dist/curl-cmd "$VER"
+            test "$(sed -n 2p dist/curl-cmd/PKG)" = "$VER"
+          else
+            echo "not a tag (${GITHUB_REF_TYPE:-unset} $VER): manifests left as committed"
+          fi
           tar czf "$BASE.tar.gz" -C dist curl-cmd
           sha256sum "$BASE.tar.gz" > "$BASE.tar.gz.sha256"
           echo "tarball=$BASE.tar.gz" >> "$GITHUB_OUTPUT"
