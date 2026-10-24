@@ -1,16 +1,28 @@
 #!/bin/sh
-# curl-cmd — assert the in-tree manifests agree with each other and with the tag.
+# curl-cmd — assert the in-tree manifests agree with each other.
 # Copyright (C) 2026 Gordon Heydon.  GPL-2.0-only (see LICENSE).
 #
 #   sh tests/manifest-version.sh <version>
 #
-# WHY A CHECK AND NOT A STAMP.  mv_package stamps the tag into its staged
-# manifests and that is the better answer where one script does the staging.
-# curl-cmd's artifacts are staged in TWO places -- build-pkg.sh here for the
-# three account artifacts, and mvx's publish-source for the portable one -- and
-# one of those is outside this repo.  Both copy the in-tree PKG and mvpkg.json
-# verbatim (build-pkg.sh line 25), so checking those two files once, before
-# anything is built, makes every artifact right.
+# WHAT THIS CHECKS, AND WHAT IT NO LONGER DOES.  It asserts the two manifests
+# AGREE -- with each other on the version, and with each other on the systems
+# list.  It no longer polices the version against the TAG, because the tag is
+# now stamped into every staged artifact instead (mvx#363).  So the in-tree
+# version is derived, not authoritative.
+#
+# WHICH IS WHY BOTH MANIFESTS SAY 0.0.0-dev (#28).  A number in here can only
+# be stale or coincidentally right -- six of the ten packages were stale when
+# the sweep ran -- so the committed value says "this is not the answer, ask the
+# tag" instead of naming a release it is not.  Do not bump it; nothing reads it.
+# The release stamps over it, and `MVPKG install --source` records the literal
+# `source` rather than reading it at all.
+#
+# AN EARLIER VERSION OF THIS HEADER ARGUED THE OPPOSITE -- that checking beat
+# stamping here, because the artifacts are staged in several places and some
+# are outside this repo.  That was wrong twice over: all of those places stamp
+# now, and three packages had already shipped wrong versions under the checking
+# approach (json#28, mapfield#14, curl-cmd#22).  A check catches someone
+# forgetting; a stamp removes the thing to forget.
 #
 # WHAT WENT WRONG WITHOUT IT.  TWO releases shipped under a version neither
 # manifest named.  Measured from the published artifact, not inferred:
@@ -43,7 +55,7 @@ if [ -f "$ROOT/mvpkg.json" ]; then
   if [ "$got" = "$WANT" ]; then
     printf '  ok   mvpkg.json version is %s\n' "$WANT"
   else
-    printf '  FAIL mvpkg.json says "%s", the tag is "%s"\n' "$got" "$WANT"; rc=1
+    printf '  FAIL mvpkg.json says "%s", not "%s"\n' "$got" "$WANT"; rc=1
   fi
 fi
 
@@ -56,7 +68,7 @@ if [ -f "$ROOT/PKG" ]; then
   if [ "$got" = "$WANT" ]; then
     printf '  ok   PKG line 2 is %s\n' "$WANT"
   else
-    printf '  FAIL PKG line 2 says "%s", the tag is "%s"\n' "$got" "$WANT"; rc=1
+    printf '  FAIL PKG line 2 says "%s", not "%s"\n' "$got" "$WANT"; rc=1
   fi
 fi
 
@@ -79,7 +91,7 @@ if [ -n "$sysline" ] || [ -n "$sysjson" ]; then
 fi
 
 if [ "$rc" -ne 0 ]; then
-  printf 'manifests: make the two manifests agree, and name %s, before tagging\n' \
+  printf 'manifests: make the two manifests agree on %s\n' \
          "$WANT" >&2
 fi
 exit "$rc"

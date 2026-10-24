@@ -33,8 +33,9 @@ jobs:
       # tag.  manifest-version.sh compares both files against the version it is
       # given and compares their systems lists to each other, so handing it the
       # version out of mvpkg.json asserts agreement without needing a tag.  The
-      # release checks both against the tag, which is the part only a tag can
-      # answer -- and is what would have caught #22.
+      # release no longer checks either against the tag: it stamps the tag in
+      # (mvx#363), and both manifests carry 0.0.0-dev, which removes the
+      # opportunity to forget that shipped #22 rather than policing it.
       - name: The manifests agree with each other
         run: |
           set -eu
